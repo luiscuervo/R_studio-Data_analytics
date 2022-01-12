@@ -3,8 +3,6 @@ Collection of data analytics exercises done in R studio during my masters
 
 ## Contents:
 
-- Decission tree algorithm exercise
-
 - Final Exam, containing:
   - Data analysis reports
   - Database screening
@@ -13,3 +11,5 @@ Collection of data analytics exercises done in R studio during my masters
   - KNN algorithm development
   - Confussion matrix calculation and plot
   - Models evaluation
+
+- Exercises on decission trees

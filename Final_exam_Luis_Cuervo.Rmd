@@ -1,0 +1,268 @@
+---
+title: "FINAL EXAM"
+author: "Luis J. Cuervo"
+output: 
+  html_document:
+    toc: yes
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rpart)
+library(rpart.plot)
+library(caret)
+```
+
+# Question 1
+
+Data analysis can help to further understand your data, as well as to predict some features of new data, based on the other features.
+
+
+Here are three examples:
+
+##    Can I group my customers?
+
+It could be the case where we would want to identify groups within the dataset in order to understand how the people of this dataset are related with one another. Using the clustering methodology, the algorithm would group similar data into as many groups (clusters) as we want.
+
+This could help us to identify different profiles in the dataset and maybe develop specific products or services targeting each of these profiles.
+
+##    Can I predict credit risk?
+
+It is possible. By developing a classification algorithm, we would be able to predict whether new customers have good or bad credit risks. As it is stated in the example question, we would develop a decision tree algorithm where class is the dependent variable and the rest of variables are independent.
+
+This methodology would also help to understand which are the important. By plotting the structure of the tree we would be able to identify the features that are most important in the tree. Those who spread positive and negative data the most will have high relevance in the categorization.
+
+##    Can I identify tendencies in specific groups of people?:
+
+We may be interested in looking at specific groups of the dataset that we are interested in. For example, we may be interested in looking at the customers with ages between 18 and 30, and study their saving status or some other parameters. This way we would understand their situation and needs, so maybe we could develop a marketing strategy with this info in mind.
+
+This can be achieved very easily by building a dataframe with our data and then manually fixing the conditions that we want to study, while getting rid of those that we consider irrelevant.
+
+
+# CASE 1: German credit dataset
+
+## Classification 
+
+We will now try to predict credit risk:
+
+```{r classificate}
+# 1 Read dataset
+ds = read.csv("credit-g.csv", sep=",", header = TRUE)
+head(ds)
+ds$class <- as.factor(ds$class)
+
+l_b = length(ds$class[ds$class == "bad"])
+l_g = length(ds$class[ds$class == "good"])
+
+# Number of people with class "bad"
+l_b
+
+# Number of people with class "good"
+l_g
+
+```
+
+We can see that our dataset is not balanced, we have more good classes than bad classes. We want to work with a balanced dataset so that the algorithm does not tend to predict data as good to achieve higher accuracy. Also, balancing the data will make are accuracy metrics more reliable.
+
+```{r classificate 2}
+ds.good = which(ds$class=="good")[1:(l_g - l_b)]
+
+ds <- ds[-c(ds.good),]
+length(ds$class[ds$class == "bad"])
+length(ds$class[ds$class == "good"])
+
+# Now it is balanced. 
+
+# Split dataset:
+train <- createDataPartition (y=ds$class, p=0.8,list=FALSE)
+ds.train <- ds[train,]
+ds.test <- ds[-train,]
+
+# Train decision tree:
+tree <- rpart(class ~ ., ds.train, method="class")
+tree
+rpart.plot(tree)
+```
+
+The decision tree algorithm is represented here, where the input is at the top of the tree and it goes down through the branches until it is classified on one of the leaves at the bottom. The numbers at center of each leaf or node tell us the amount of files that reach them having class good. It can also be interpreted as the probability of the output being good once that node is reached. Therefore, we will want a high number on the leaves that classify as good, and a low number of the leaves that classify as bad so that the algorithm is certain about the labeling that it makes. We can see that is the case in most part of our tree.
+
+On the other hand, the percentage at the bottom represents the amount of data that has reached that specific leaf or node (Percentage over the total amount of data samples).
+
+Looking at the top of the decision tree plot we can see that initially all data have a 50% chance of being class bad, which makes sense since our data is balanced. Then the first node checks the checking status, and if it satisfies the stated condition, it will go to the left where we it will have a 36% chance of having good credit risk. So the checking status has high importance regarding credit risk.
+
+To further analyze the rest of the tree we must only look at each branch of the tree like we just did, knowing that lines going to the left of each node satisfy the stated condition while those that go to the right don't.
+
+
+Let's now proceed to evaluate the algorithm.
+
+First we will look at the confusion matrix:
+```{r Study tree}
+predictions <- predict(tree, ds.test, type = "class")
+cm = confusionMatrix(predictions, ds.test$class)
+
+ctable <- as.table(matrix(cm[[2]], nrow = 2, byrow = TRUE, dimnames=list(list("Prediction bad", "Prediction good"), list("Reference bad", "Reference good"))))
+
+fourfoldplot(ctable, color = c("#CC6666", "#99CC99"),
+             conf.level = 0, margin = 1, main = "Confusion Matrix")
+
+```
+
+This figure shows the correct predictions in green and the wrong predictions in red, where columns represent the real value of the data labels and rows the predicted value. We can see that the green values clearly overrule the red values, so our model starts with a good foot. Also, the two green circles have similar value, so our algorithms is not more inclined to label the data as positive or negative, which is also good.
+
+Let's study now accuracy metrics:
+```{r accuracy}
+cm
+```
+
+Our algorithm stays around 70% of accuracy (we performed more than one execution on the model), which means that 70% of the data is labeled correctly.  That is quite high, given that it is a complex tree. 
+
+Also, we consider our result satisfactory because we have high sensitivity and specificity. Sensitivity measures the amount of correctly predicted positive data (true positives) over the total amount of positive labeled data (total positives). In this case, the positive class is "bad". Specificity is the same but with negative data.
+So, just like we mentioned earlier, the fact that both green circles have similar size is represented in the sensitivity and specificity having similar values. Again, this will mean that our algorithm is not inclined to label data as positive or negative.
+
+## KNN
+
+```{r knn}
+knn.fit <- train(class~ ., data=ds.train, method="knn", preProcess=c("center", "scale"))
+knn.fit
+
+knn.predict <- predict(knn.fit, newdata=ds.test)
+CM = confusionMatrix (knn.predict, ds.test$class)
+
+ctable <- as.table(matrix(CM[[2]], nrow = 2, byrow = TRUE, dimnames=list(list("Prediction bad", "Prediction good"), list("Reference bad", "Reference good"))))
+fourfoldplot(ctable, color = c("#CC6666", "#99CC99"),
+             conf.level = 0, margin = 1, main = "Confusion Matrix")
+CM
+```
+
+We obtained accuracy values that are not so different from the decission tree algorithm (around 65% of accuracy). However, most of the times the obtained sensitivity is considerably different from specificity, menaing that there is a tendency towards possitive results if sensitivity is higher, or towards negative results if specificity is higher.
+
+## Which is better?
+
+We come to the conclusion that the decision tree algorithm is better in all aspects. The average accuracy of all the trainings that we have done is higher than that of knn. Furthermore, it is less computationally expensive and it allows interpretation of the model. KNN on the other hand gives more unbalanced results, requires more computational power and acts as a black box, meaning that we don't really know what is going on when the algorithm is implemented.
+
+## Analysis explanation
+
+We have developed a rather satisfactory methodology of predicting credit risk. By feeding it other information about the person (such as his/her existing credit, age, personal status...) the program will categorize the person as good or bad credit risk.
+
+This algorithm was trained on real data, meaning that it can be trained further if we obtain more data in the future. With more training it is very likely to provide better results. That is one more reason for the bank to take good care of its data.
+
+However, this algorithm is not 100% reliable (we saw that it achieves around 70% of accuracy). That is why it would be convenient for a human being to overlook the results of the algorithms, specially when considering giving big amounts of credit. Nevertheless it can be a useful tool to use and it can be used to make instant decisions when considering small amounts of credit.
+
+# CASE 2: Insurance Company
+
+## Why is regression appropiate?
+
+A regression analysis is useful to predict a numeric value based on other parameters, under the assumption that the dependent value can be predicted based on the other independent variables. In this case we want to predict the final amount of compensation based on other parameters.
+
+Linear regression is more than able to do so and it will give us perspective on what parameters are really important for the prediction.
+
+## How is it different from the previous case?
+
+The main difference between this case and the previous one is that the output data is not categorical like in the previous case. Instead it is numerical.
+So the prediction made by the algorithm will not be a class label like "good" or "bad", it will be a specific number with infinite possible values.
+
+Also, the very structure of the algorithm is different. Where as previously we either had the tree structure of the decision tree or the black box of knn, the model here will be quite simpler. We will just have a series of parameters that when multiplied by their corresponding independent variable value and added up together, they will result in the numerical value that we are looking for
+
+## Procedure
+
+```{r Insurance}
+df<-read.csv("insurance.csv", sep=",", stringsAsFactors=TRUE)
+df$ClaimNumber = NULL
+df$DateReported = NULL
+df$DateTimeOfAccident = NULL
+df$ClaimDescription = NULL
+
+# Regression algorithm
+model = lm(UltimateIncurredClaimCost ~ ., data = df)
+model
+```
+By looking at the coefficients drawn by the regression model, we could come to the conclusion that the higher the coefficients, the more relevant their corresponding predictor would be. However that is not necessarily true because these predictors could have different order of magnitudes. For example, the values of the variable HoursWorkedPerWeek will almost always be higher than that of DaysWorkedPerWeek and therefore the resulting contribution to the linear regression will be higher even if they were to have similar coefficients.
+
+Instead, we will look at the p-value of each predictor variable. Variables with a high p-value will likely have no effect on the independent variable (It tests the null hypothesis)
+
+```{r continue regression analysis}
+summary(model)
+```
+
+R already marks the most relevant predictors (those with the lowest P-value) with asterisks.
+We will consider Age, Gender, WeeklyWages and InitialIncurredCalimsCost as the most relevant variables, followed by MaritalStatusU and DependentChildren.
+
+```{r second regression training}
+model2 = lm(UltimateIncurredClaimCost ~ Age + Gender + WeeklyWages + InitialIncurredCalimsCost + MaritalStatus + DependentChildren, data = df)
+
+coefficients = summary(model2)$coefficients
+coefficients
+#We will predict the Dependent variable using a linear regression formula like the following:
+
+sprintf('y = %.3f + %.3f*Age - %.3f*Gender + %.3f*WeeklyWages + %.3f*CalimsCost - %.3f*M.S.S + %.3f*M.S.U + %.3f*DependentChildren + error', coefficients[1], coefficients[2], coefficients[3], coefficients[4], coefficients[5], coefficients[6], coefficients[7], coefficients[8])
+```
+ 
+
+## Evaluate model:
+We will now study the quality of the model.
+First, by looking at the median value of the residuals, we can see that it is quite close to zero, which means that the "line" drawn by the model is quite centered in respect to the data (because the mean distance of the points to the line is close to zero).
+
+Then, of course, we will look at the R-squared value. It is 0.695, an acceptable value although it could be higher (so we must not worry about over-fitting). It means that most of the points will fall close to the line.
+Let's look at the residual plots:
+
+```{r visualize regression}
+layout(matrix(1:4,2,2))
+plot(model2)
+````
+
+Residuals versus fitted seams quite linear, meaning we don't have non linear relationships.
+Normal Q-Q is for the most part linear, which is good
+Scale-location does not seem good though. All the fitted values are positives and the line is not completely horizontal. This mean that the variables do not have the same variance.
+Residuals vs Leverage shows that there are not many outliers (the cook's distance line can barely be seen). This makes sense given that we previously saw that the max value of the residuals was 6.7
+
+All in all we could say that is a fairly good model.
+
+## Invented case
+
+```{r invent and predict}
+invented.case = data.frame(Age=21, Gender="F", WeeklyWages= 320, InitialIncurredCalimsCost=7, MaritalStatus="M", DependentChildren=1)
+
+# Prediction
+predict(model2, invented.case)
+````
+
+# Case 3. Customer Segmentation at RetailMart
+
+## Is clustering a good option?
+
+Clustering is the perfect procedure for this objective. It will define a similarity metric between the data and group all the data samples into as many groups as we ask based on similarity.
+
+However, some interpretation must be done on the clusters. The algorithm will group the data, yes, but it is up to us to deduce what are the characteristics of these groups This should be rather easy given that we will only work with three variables.
+
+## How is clustering different?
+
+Clustering belongs to a branch of machine learning known as unsupervised ML. It is differentiated from the previous methods in the fact that its data is not labeled. Our previous data already had the independent variable stated, we trained the algorithm by showing it various examples with different labels. However, now our data is unlabeled. We are asking the algorithm to find the clusters on its own, without it knowing the correct answer to the question.
+
+## Explain the results
+
+Clustering works by trying to assign to each cluster a centroid (a value of the variables that whose neighbors will be included in the cluster) for each variable. It starts by randomly selecting the centroids and finding the nearest values to each centroid. Then, it assigns the new centroid at the "mass center" of each resulting cluster and repeat the procedure until the clusters don't change.
+These centroids are shown in the first table of the results shown. They are useful to deduce the separation of each cluster, if wee look at how apart the centroids are from one another. 
+
+Looking at the pie chart, we can see the amount of data samples that fall into each cluster: 42%  to cluster0, 18.2% to cluster 1 and 39.1% to cluster2. 
+(NOTE: We considered that the pie charts corresponds to the bar plots based on the indexes since the colors and the indexes do not match with those of the bar plots)
+
+Let's now look at the boxplots. Boxplots are very useful to deduce the distance between data samples within the clusters. If the distance is small we will say that the elements of the cluster are homogeneous.
+
+Let's focus first on cluster 0: it is homogeneous on amount and frequency, but it is not homogeneous in recency. This means that 42% of the data have very similar values of amount and frequency. In fact, all the elements of this cluster seem to have the same value for frequency (something around 1).
+
+Cluster1 on the other hand only is homogeneous on recency. For amount, only the first three quarters of the data stay between 0 and 59.7k, the 4th quarter gets as high as 19.91k. Frequency is also very heterogeneous. 
+We could say that in a way this cluster is the opposite of cluster0 in terms of homogeneity, and if we look at the position of the centroids we can see that they are very far away from those of cluster0.
+
+Finally, Cluster2 is the most balanced in terms of homogeneity. It is quite similar to cluster0 (the centroids are quite close too) with the difference that it is less homogeneous in amount and frequency, but more in recency. But the main difference relies on the fact that frequency is different than that fixed value of the elements of cluster0.
+
+So basically there are three kinds of customers:
+
+### Type 0 (cluster 0): Esporadic customers
+Customers that have come one or two times to Walmart, have spent a small amount of money and came at very different points of time. They represent 42.6% of the customers
+
+### Type 1 (cluster 1): Loyal customers
+They come frequently to the store, have spent the largest amount of money and came for the last time very recently. 18.2% of the customers
+
+### Type 2 (cluster 2): Frequent customers
+Repeated customers. Customers that are in between the other two types. They spend medium/small amounts of money, come every now and then to the store and most of them came to the store not so long ago.
